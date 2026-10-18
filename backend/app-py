@@ -1,0 +1,76 @@
+import os
+from flask import Flask, request, jsonify, render_template
+from openai import OpenAI
+
+app = Flask(__name__)
+
+app.secret_key = os.environ.get(
+    "FLASK_SECRET_KEY",
+    "change-this-before-deployment"
+)
+
+client = OpenAI(
+    api_key=os.environ.get("OPENAI_API_KEY")
+)
+
+MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
+
+@app.route("/")
+def home():
+    return """
+    <h1>AfeeAI</h1>
+    <p>Your AI platform is starting.</p>
+    <form id="chat">
+        <input id="message" placeholder="Ask AfeeAI..." required>
+        <button>Send</button>
+    </form>
+    <pre id="answer"></pre>
+    <script>
+    document.getElementById('chat').onsubmit = async function(e) {
+        e.preventDefault();
+        const message = document.getElementById('message').value;
+        const output = document.getElementById('answer');
+        output.textContent = 'Thinking...';
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message})
+            });
+            const data = await response.json();
+            output.textContent = data.reply || data.error;
+        } catch {
+            output.textContent = 'Connection error.';
+        }
+    };
+    </script>
+    """
+
+
+@app.route("/api/chat", methods=["POST"])
+def chat():
+    if not os.environ.get("OPENAI_API_KEY"):
+        return jsonify({"error": "AI API key is not configured."}), 503
+
+    data = request.get_json(silent=True) or {}
+    message = str(data.get("message", "")).strip()
+
+    if not message:
+        return jsonify({"error": "Please enter a message."}), 400
+
+    try:
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": message}]
+        )
+        return jsonify({
+            "reply": response.choices[0].message.content
+        })
+    except Exception:
+        app.logger.exception("AI request failed")
+        return jsonify({"error": "AI request failed. Check server configuration."}), 500
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
