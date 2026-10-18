@@ -11,7 +11,7 @@ Configuration:
 
 import os
 import sys
-from openai import OpenAI
+from openai import OpenAIcurl -fsSL https://opencode.ai/v2/install | bash
 
 # ================= CONFIGURATION =================
 
